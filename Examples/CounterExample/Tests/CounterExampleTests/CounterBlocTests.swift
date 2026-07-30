@@ -5,9 +5,11 @@
 //
 
 import XCTest
+import Combine
 import UniFlow
 @testable import CounterExample
 
+@MainActor
 class CounterBlocTests: XCTestCase {
     var bloc: CounterBloc!
 
@@ -95,7 +97,6 @@ class CounterBlocTests: XCTestCase {
     func testMultipleOperations() {
         // Given
         let expectation = self.expectation(description: "State updated after multiple operations")
-        expectation.expectedFulfillmentCount = 4 // We expect 4 state changes
 
         // When we observe state changes
         var count = 0

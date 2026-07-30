@@ -40,11 +40,12 @@ enum TodoEvent: Event {
     case deleteTodo(UUID)
     case toggleAll
     case clearCompleted
+    case setFilter(TodoState.Filter)
 }
 
 // MARK: - States
 
-struct TodoState: State {
+struct TodoState: StateProtocol, Equatable {
     var todos: [TodoItem] = []
     var filter: Filter = .all
 
@@ -118,6 +119,12 @@ class TodoBloc: Bloc<TodoEvent, TodoState> {
                 newState.todos = newState.activeTodos
                 continuation.yield(newState)
                 continuation.finish()
+
+            case .setFilter(let filter):
+                var newState = state
+                newState.filter = filter
+                continuation.yield(newState)
+                continuation.finish()
             }
         }
     }
@@ -141,14 +148,14 @@ struct TodoListView: View {
                     TextField("What needs to be done?", text: $newTodoText)
                         .textFieldStyle(.roundedBorder)
                         .onSubmit {
-                            if !newTodoText.trimmingCharacters(in: .whitespaceAndNewline).isEmpty {
+                            if !newTodoText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                                 bloc.send(.addTodo(newTodoText))
                                 newTodoText = ""
                             }
                         }
 
                     Button(action: {
-                        if !newTodoText.trimmingCharacters(in: .whitespaceAndNewline).isEmpty {
+                        if !newTodoText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                             bloc.send(.addTodo(newTodoText))
                             newTodoText = ""
                         }
@@ -156,7 +163,7 @@ struct TodoListView: View {
                         Image(systemName: "plus.circle.fill")
                             .font(.title2)
                     }
-                    .disabled(newTodoText.trimmingCharacters(in: .whitespaceAndNewline).isEmpty)
+                    .disabled(newTodoText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
                 .padding(.horizontal, 8)
             }
@@ -183,7 +190,7 @@ struct TodoListView: View {
             }
 
             // Footer
-            if !(try? BlocBuilder<TodoBloc, AnyView>.self.init { _ in AnyView(EmptyView()) }.body) != nil {
+            if !bloc.state.todos.isEmpty {
                 BlocBuilder(bloc) { state in
                     VStack(spacing: 8) {
                         HStack {
@@ -193,8 +200,11 @@ struct TodoListView: View {
 
                             Spacer()
 
-                            Picker("Filter", selection: $bloc.state.filter) {
-                                ForEach(TodoState.Filter.allCases, id: \Self.self) { filter in
+                            Picker("Filter", selection: Binding(
+                                get: { bloc.state.filter },
+                                set: { bloc.send(.setFilter($0)) }
+                            )) {
+                                ForEach(TodoState.Filter.allCases, id: \.self) { filter in
                                     Text(filter.rawValue.capitalized)
                                         .tag(filter)
                                 }
@@ -248,8 +258,10 @@ struct TodoRowView: View {
 
 // MARK: - Preview
 
-struct TodoExampleApp_Previews: PreviewProvider {
+struct TodoListView_Previews: PreviewProvider {
     static var previews: some View {
-        TodoExampleApp()
+        NavigationView {
+            TodoListView()
+        }
     }
 }

@@ -10,10 +10,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Run one test method: `swift test --filter BlocListenerTests/testBlocListenerWithExplicitBloc`
 - Lint: `swiftlint` (config at `.swiftlint.yml`; not installed in this environment)
 
-The `Examples/` packages (`CounterExample`, `TodoExample`) do **not** build as-is: their
-`Package.swift` targets expect sources under `Sources/<TargetName>/`, but the actual
-`.swift` files sit directly in `Examples/CounterExample/` and `Examples/TodoExample/`.
-Treat them as reference snippets, not buildable projects, unless you fix the layout first.
+The `Examples/` packages (`CounterExample`, `TodoExample`) are standalone SwiftPM
+executable packages with sources under `Sources/<TargetName>/` (and, for
+`CounterExample`, tests under `Tests/<TargetName>Tests/`), each depending on the root
+package via `.package(path: "../../")`. Build/test them from inside their own directory,
+e.g. `cd Examples/CounterExample && swift build && swift test`. They require
+`swift-tools-version: 5.9`+ and `.macOS(.v12)` (TodoExample uses `onSubmit`, both use
+SwiftUI APIs unavailable before macOS 11).
 
 ## Architecture
 

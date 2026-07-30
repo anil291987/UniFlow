@@ -26,7 +26,7 @@ enum CounterEvent: Event {
 
 // MARK: - States
 
-struct CounterState: State, Equatable {
+struct CounterState: StateProtocol, Equatable {
     var count: Int = 0
 
     static func == (lhs: CounterState, rhs: CounterState) -> Bool {
