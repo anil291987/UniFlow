@@ -7,6 +7,7 @@
 import XCTest
 import SwiftUI
 import Combine
+import AppKit
 @testable import UniFlow
 
 // MARK: - Test Models
@@ -53,6 +54,25 @@ fileprivate class ListenerTestBloc: Bloc<ListenerTestEvent, ListenerTestState> {
     }
 }
 
+// MARK: - Test Helper
+
+@MainActor
+fileprivate func host<V: View>(_ view: V) -> NSHostingController<V> {
+    let controller = NSHostingController(rootView: view)
+    controller.view.layoutSubtreeIfNeeded()
+    return controller
+}
+
+/// SwiftUI only re-evaluates a view's body on the next real render pass; without a
+/// window driving that, force it by repeatedly pumping layout until `condition` is true.
+@MainActor
+fileprivate func pumpLayout<V>(_ controller: NSHostingController<V>, until expectation: XCTestExpectation) -> Timer {
+    Timer.scheduledTimer(withTimeInterval: 0.02, repeats: true) { _ in
+        controller.view.layoutSubtreeIfNeeded()
+    }
+}
+
+@MainActor
 final class BlocListenerTests: XCTestCase {
     var cancellables: Set<AnyCancellable>!
 
@@ -72,18 +92,19 @@ final class BlocListenerTests: XCTestCase {
         let bloc = ListenerTestBloc(initialValue: 0)
         var receivedValues: [Int] = []
         let expectation = self.expectation(description: "Listener called on state change")
-        expectation.expectedFulfillmentCount = 2
 
-        // When we create a BlocListener and observe state changes
-        let _ = BlocListener<ListenerTestBloc, Text> { bloc, state in
-            receivedValues.append(state.value)
-            if receivedValues.count == 2 {
-                expectation.fulfill()
-            }
-        } child: {
-            Text("Test")
-        }
-        .environmentObject(bloc)
+        // When we create a BlocListener with an explicit bloc (no environmentObject ancestor)
+        let controller = host(
+            BlocListener(bloc, listener: { state in
+                receivedValues.append(state.value)
+                if receivedValues.count == 2 {
+                    expectation.fulfill()
+                }
+            }, child: {
+                Text("Test")
+            })
+        )
+        let pump = pumpLayout(controller, until: expectation)
 
         // Send events to trigger state changes - need to use MainActor for send
         Task { @MainActor in
@@ -93,12 +114,11 @@ final class BlocListenerTests: XCTestCase {
 
         // Then
         wait(for: [expectation], timeout: 1.0)
+        pump.invalidate()
         XCTAssertEqual(receivedValues, [1, 2], "Listener should receive updated state values")
 
         // Cleanup
-        Task { @MainActor in
-            bloc.close()
-        }
+        bloc.close()
     }
 
     func testBlocListenerWithEnvironmentBloc() {
@@ -108,15 +128,18 @@ final class BlocListenerTests: XCTestCase {
         let expectation = self.expectation(description: "Listener called on state change")
 
         // When we create a BlocListener that gets bloc from environment
-        let _ = BlocListener<ListenerTestBloc, Text> { bloc, state in
-            receivedValues.append(state.value)
-            if receivedValues.count >= 1 {
-                expectation.fulfill()
+        let controller = host(
+            BlocListener<ListenerTestBloc, Text> { state in
+                receivedValues.append(state.value)
+                if receivedValues.count >= 1 {
+                    expectation.fulfill()
+                }
+            } child: {
+                Text("Test")
             }
-        } child: {
-            Text("Test")
-        }
-        .environmentObject(bloc)
+            .environmentObject(bloc)
+        )
+        let pump = pumpLayout(controller, until: expectation)
 
         // Send event to trigger state change - need to use MainActor for send
         Task { @MainActor in
@@ -125,12 +148,11 @@ final class BlocListenerTests: XCTestCase {
 
         // Then
         wait(for: [expectation], timeout: 1.0)
+        pump.invalidate()
         XCTAssertEqual(receivedValues, [4], "Listener should receive updated state value")
 
         // Cleanup
-        Task { @MainActor in
-            bloc.close()
-        }
+        bloc.close()
     }
 
     func testBlocListenerInitialStateNotCalled() {
@@ -140,15 +162,18 @@ final class BlocListenerTests: XCTestCase {
         let expectation = self.expectation(description: "Listener called on state change")
 
         // When we create a BlocListener
-        let _ = BlocListener<ListenerTestBloc, Text> { bloc, state in
-            receivedValues.append(state.value)
-            if receivedValues.count >= 1 {
-                expectation.fulfill()
+        let controller = host(
+            BlocListener<ListenerTestBloc, Text> { state in
+                receivedValues.append(state.value)
+                if receivedValues.count >= 1 {
+                    expectation.fulfill()
+                }
+            } child: {
+                Text("Test")
             }
-        } child: {
-            Text("Test")
-        }
-        .environmentObject(bloc)
+            .environmentObject(bloc)
+        )
+        let pump = pumpLayout(controller, until: expectation)
 
         // Send event to trigger state change (initial state should not trigger listener) - need to use MainActor for send
         Task { @MainActor in
@@ -157,11 +182,10 @@ final class BlocListenerTests: XCTestCase {
 
         // Then
         wait(for: [expectation], timeout: 1.0)
+        pump.invalidate()
         XCTAssertEqual(receivedValues, [20], "Listener should only receive updated state, not initial state")
 
         // Cleanup
-        Task { @MainActor in
-            bloc.close()
-        }
+        bloc.close()
     }
 }

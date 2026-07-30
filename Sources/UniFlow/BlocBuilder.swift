@@ -6,16 +6,6 @@
 
 import SwiftUI
 
-/// A helper class to wrap an optional bloc for @StateObject
-@MainActor
-private class ExplicitBlocWrapper<B: BlocBase>: ObservableObject {
-    var bloc: B?
-
-    init(_ bloc: B? = nil) {
-        self.bloc = bloc
-    }
-}
-
 /// A SwiftUI Widget that rebuilds its UI in response to state changes in a Bloc or Cubit.
 ///
 /// Usage:
@@ -26,15 +16,18 @@ private class ExplicitBlocWrapper<B: BlocBase>: ObservableObject {
 //  ```
 @available(iOS 14.0, macOS 11.0, tvOS 14.0, watchOS 7.0, *)
 public struct BlocBuilder<B: BlocBase, Content: View>: View {
-    // For explicit bloc instance - we wrap the optional in a class to make it ObservableObject
-    @StateObject private var explicitBlocWrapper = ExplicitBlocWrapper<B>()
-    // For bloc from environment
-    @EnvironmentObject private var environmentBloc: B
+    private enum Source {
+        case explicit(B)
+        case environment
+    }
+
+    private let source: Source
     private let builder: (B.State) -> Content
 
     /// Creates a BlocBuilder that obtains the bloc from the environment.
     /// - Parameter builder: A function that takes the current state and returns a view.
     public init(@ViewBuilder builder: @escaping (B.State) -> Content) {
+        self.source = .environment
         self.builder = builder
     }
 
@@ -43,16 +36,44 @@ public struct BlocBuilder<B: BlocBase, Content: View>: View {
     ///   - bloc: The bloc to build with.
     ///   - builder: A function that takes the current state and returns a view.
     public init(_ bloc: B, @ViewBuilder builder: @escaping (B.State) -> Content) {
+        self.source = .explicit(bloc)
         self.builder = builder
-        self.explicitBlocWrapper.bloc = bloc
-    }
-
-    private var bloc: B {
-        // Return explicit bloc if provided, otherwise environment bloc
-        explicitBlocWrapper.bloc ?? environmentBloc
     }
 
     public var body: some View {
+        switch source {
+        case .explicit(let bloc):
+            _ExplicitBlocBuilder(bloc: bloc, builder: builder)
+        case .environment:
+            _EnvironmentBlocBuilder<B, Content>(builder: builder)
+        }
+    }
+}
+
+// MARK: - Private child views
+//
+// Split into two separate view types so that `@EnvironmentObject` is only ever a
+// dynamic property on a view that is actually instantiated for the environment-based
+// path. SwiftUI validates every dynamic property of a view when its body runs, even
+// branches that go unused, so keeping both wrappers on one view type would crash
+// whenever an explicit bloc is supplied without an environmentObject ancestor.
+
+@available(iOS 14.0, macOS 11.0, tvOS 14.0, watchOS 7.0, *)
+private struct _ExplicitBlocBuilder<B: BlocBase, Content: View>: View {
+    @ObservedObject var bloc: B
+    let builder: (B.State) -> Content
+
+    var body: some View {
+        builder(bloc.state)
+    }
+}
+
+@available(iOS 14.0, macOS 11.0, tvOS 14.0, watchOS 7.0, *)
+private struct _EnvironmentBlocBuilder<B: BlocBase, Content: View>: View {
+    @EnvironmentObject var bloc: B
+    let builder: (B.State) -> Content
+
+    var body: some View {
         builder(bloc.state)
     }
 }

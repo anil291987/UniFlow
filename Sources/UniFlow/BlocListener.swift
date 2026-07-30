@@ -7,16 +7,6 @@
 import SwiftUI
 import Combine
 
-/// A helper class to wrap an optional bloc for @StateObject
-@MainActor
-private class OptionalBlocWrapper<B: BlocBase>: ObservableObject {
-    var bloc: B?
-
-    init(_ bloc: B? = nil) {
-        self.bloc = bloc
-    }
-}
-
 /// A SwiftUI Widget that invokes a callback in response to state changes in a Bloc or Cubit.
 ///
 /// Usage:
@@ -32,10 +22,12 @@ private class OptionalBlocWrapper<B: BlocBase>: ObservableObject {
 /// ```
 @available(iOS 14.0, macOS 11.0, tvOS 14.0, watchOS 7.0, *)
 public struct BlocListener<B: BlocBase, Content: View>: View {
-    // For explicit bloc instance - we wrap the optional in a class to make it ObservableObject
-    @StateObject private var explicitBlocWrapper = OptionalBlocWrapper<B>()
-    // For bloc from environment
-    @EnvironmentObject private var environmentBloc: B
+    private enum Source {
+        case explicit(B)
+        case environment
+    }
+
+    private let source: Source
     private let listener: (B.State) -> Void
     private let child: () -> Content
 
@@ -44,6 +36,7 @@ public struct BlocListener<B: BlocBase, Content: View>: View {
     ///   - listener: A closure that is called on every state change (excluding the initial state).
     ///   - child: The widget to build when the bloc is in the tree.
     public init(listener: @escaping (B.State) -> Void, @ViewBuilder child: @escaping () -> Content) {
+        self.source = .environment
         self.listener = listener
         self.child = child
     }
@@ -54,20 +47,53 @@ public struct BlocListener<B: BlocBase, Content: View>: View {
     ///   - listener: A closure that is called on every state change (excluding the initial state).
     ///   - child: The widget to build when the bloc is in the tree.
     public init(_ bloc: B, listener: @escaping (B.State) -> Void, @ViewBuilder child: @escaping () -> Content) {
+        self.source = .explicit(bloc)
         self.listener = listener
         self.child = child
-        self.explicitBlocWrapper.bloc = bloc
-    }
-
-    private var bloc: B {
-        // Return explicit bloc if provided, otherwise environment bloc
-        explicitBlocWrapper.bloc ?? environmentBloc
     }
 
     public var body: some View {
+        switch source {
+        case .explicit(let bloc):
+            _ExplicitBlocListener(bloc: bloc, listener: listener, child: child)
+        case .environment:
+            _EnvironmentBlocListener<B, Content>(listener: listener, child: child)
+        }
+    }
+}
+
+// MARK: - Private child views
+//
+// Split into two separate view types so that `@EnvironmentObject` is only ever a
+// dynamic property on a view that is actually instantiated for the environment-based
+// path. SwiftUI validates every dynamic property of a view when its body runs, even
+// branches that go unused, so keeping both wrappers on one view type would crash
+// whenever an explicit bloc is supplied without an environmentObject ancestor.
+
+@available(iOS 14.0, macOS 11.0, tvOS 14.0, watchOS 7.0, *)
+private struct _ExplicitBlocListener<B: BlocBase, Content: View>: View {
+    @ObservedObject var bloc: B
+    let listener: (B.State) -> Void
+    let child: () -> Content
+
+    var body: some View {
         child()
-            .onReceive(bloc.statePublisher) { newState in
-                self.listener(newState)
+            .onReceive(bloc.statePublisher.dropFirst()) { newState in
+                listener(newState)
+            }
+    }
+}
+
+@available(iOS 14.0, macOS 11.0, tvOS 14.0, watchOS 7.0, *)
+private struct _EnvironmentBlocListener<B: BlocBase, Content: View>: View {
+    @EnvironmentObject var bloc: B
+    let listener: (B.State) -> Void
+    let child: () -> Content
+
+    var body: some View {
+        child()
+            .onReceive(bloc.statePublisher.dropFirst()) { newState in
+                listener(newState)
             }
     }
 }

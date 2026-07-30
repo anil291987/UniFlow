@@ -11,6 +11,8 @@ import Combine
 
 // MARK: - Test Models
 
+fileprivate struct ProviderTestEvent: Event { }
+
 fileprivate struct ProviderTestState: StateProtocol, Equatable {
     var value: Int = 0
 
@@ -19,12 +21,12 @@ fileprivate struct ProviderTestState: StateProtocol, Equatable {
     }
 }
 
-fileprivate class ProviderTestBloc: Bloc<Void, ProviderTestState> {
+fileprivate class ProviderTestBloc: Bloc<ProviderTestEvent, ProviderTestState> {
     init(initialValue: Int = 0) {
         super.init(initialState: ProviderTestState(value: initialValue))
     }
 
-    override func mapEventToState(_ event: Void) -> AsyncStream<ProviderTestState> {
+    override func mapEventToState(_ event: ProviderTestEvent) -> AsyncStream<ProviderTestState> {
         return AsyncStream { continuation in
             continuation.yield(state)
             continuation.finish()
@@ -46,6 +48,7 @@ fileprivate struct ViewInspector {
     }
 }
 
+@MainActor
 final class BlocProviderTests: XCTestCase {
 
     // MARK: - BlocProvider Tests

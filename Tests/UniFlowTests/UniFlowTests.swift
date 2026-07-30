@@ -10,14 +10,14 @@ import Combine
 
 // MARK: - Test Models
 
-fileprivate enum TestEvent: Event {
+enum TestEvent: Event {
     case increment
     case decrement
     case reset
     case setValue(Int)
 }
 
-fileprivate struct TestState: StateProtocol, Equatable {
+struct TestState: StateProtocol, Equatable {
     var value: Int = 0
 
     static func == (lhs: TestState, rhs: TestState) -> Bool {
@@ -27,7 +27,7 @@ fileprivate struct TestState: StateProtocol, Equatable {
 
 // MARK: - Test Blocs
 
-fileprivate class TestBloc: Bloc<TestEvent, TestState> {
+class TestBloc: Bloc<TestEvent, TestState> {
     init(initialValue: Int = 0) {
         super.init(initialState: TestState(value: initialValue))
     }
@@ -59,7 +59,7 @@ fileprivate class TestBloc: Bloc<TestEvent, TestState> {
     }
 }
 
-fileprivate class TestCubit: Cubit<TestState> {
+class TestCubit: Cubit<TestState> {
     init(initialValue: Int = 0) {
         super.init(initialState: TestState(value: initialValue))
     }
@@ -79,6 +79,7 @@ fileprivate class TestCubit: Cubit<TestState> {
 
 // MARK: - Tests
 
+@MainActor
 final class UniFlowTests: XCTestCase {
     var cancellables: Set<AnyCancellable>!
 
@@ -238,20 +239,18 @@ final class UniFlowTests: XCTestCase {
         var receivedValues: [Int] = []
         var cancellable: AnyCancellable?
 
-        // Observe state changes on MainActor
-        Task { @MainActor in
-            cancellable = cubit.statePublisher
-                .dropFirst() // Skip initial state
-                .sink { state in
-                    receivedValues.append(state.value)
-                    if receivedValues.count == 1 {
-                        // Then
-                        XCTAssertEqual(state.value, 1, "Value should be 1 after increment")
-                        expectation.fulfill()
-                        cancellable?.cancel()
-                    }
+        // Observe state changes
+        cancellable = cubit.statePublisher
+            .dropFirst() // Skip initial state
+            .sink { state in
+                receivedValues.append(state.value)
+                if receivedValues.count == 1 {
+                    // Then
+                    XCTAssertEqual(state.value, 1, "Value should be 1 after increment")
+                    expectation.fulfill()
+                    cancellable?.cancel()
                 }
-        }
+            }
 
         // Increment
         cubit.increment()
@@ -268,17 +267,15 @@ final class UniFlowTests: XCTestCase {
         // When we observe state changes
         var cancellable: AnyCancellable?
 
-        // Observe state changes on MainActor
-        Task { @MainActor in
-            cancellable = cubit.statePublisher
-                .dropFirst() // Skip initial state
-                .sink { state in
-                    // Then
-                    XCTAssertEqual(state.value, 4, "Value should be 4 after decrement from 5")
-                    expectation.fulfill()
-                    cancellable?.cancel()
-                }
-        }
+        // Observe state changes
+        cancellable = cubit.statePublisher
+            .dropFirst() // Skip initial state
+            .sink { state in
+                // Then
+                XCTAssertEqual(state.value, 4, "Value should be 4 after decrement from 5")
+                expectation.fulfill()
+                cancellable?.cancel()
+            }
 
         // Decrement
         cubit.decrement()
@@ -295,17 +292,15 @@ final class UniFlowTests: XCTestCase {
         // When we observe state changes
         var cancellable: AnyCancellable?
 
-        // Observe state changes on MainActor
-        Task { @MainActor in
-            cancellable = cubit.statePublisher
-                .dropFirst() // Skip initial state
-                .sink { state in
-                    // Then
-                    XCTAssertEqual(state.value, 42, "Value should be 42 after setValue(42)")
-                    expectation.fulfill()
-                    cancellable?.cancel()
-                }
-        }
+        // Observe state changes
+        cancellable = cubit.statePublisher
+            .dropFirst() // Skip initial state
+            .sink { state in
+                // Then
+                XCTAssertEqual(state.value, 42, "Value should be 42 after setValue(42)")
+                expectation.fulfill()
+                cancellable?.cancel()
+            }
 
         // Set value
         cubit.setValue(42)
@@ -317,8 +312,7 @@ final class UniFlowTests: XCTestCase {
 
 // MARK: - Test Helper
 
-@MainActor
-class TestBlocObserver: BlocObserver, @unchecked Sendable {
+class TestBlocObserver: BlocObserverBase {
     var createCount = 0
     var changeCount = 0
     var closeCount = 0
