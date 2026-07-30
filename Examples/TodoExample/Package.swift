@@ -26,7 +26,9 @@ let package = Package(
         .executableTarget(
             name: "TodoExample",
             dependencies: ["UniFlow"]),
-        .testTarget(
-            name: "TodoExampleUITests"),
+        // TodoExampleUITests (Tests/TodoExampleUITests) is a real Xcode UI Testing
+        // Bundle, generated via `xcodegen generate` from project.yml -- SwiftPM can only
+        // produce unit-test bundles, which can't host XCUIApplication, so it's
+        // intentionally not listed as a target here. Run it via TodoExample.xcodeproj.
     ]
 )

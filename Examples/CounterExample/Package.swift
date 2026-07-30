@@ -29,7 +29,9 @@ let package = Package(
         .testTarget(
             name: "CounterExampleTests",
             dependencies: ["CounterExample"]),
-        .testTarget(
-            name: "CounterExampleUITests"),
+        // CounterExampleUITests (Tests/CounterExampleUITests) is a real Xcode UI Testing
+        // Bundle, generated via `xcodegen generate` from project.yml -- SwiftPM can only
+        // produce unit-test bundles, which can't host XCUIApplication, so it's
+        // intentionally not listed as a target here. Run it via CounterExample.xcodeproj.
     ]
 )
