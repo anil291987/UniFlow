@@ -1,6 +1,7 @@
 # UniFlow
 
-![Swift](https://img.shields.io/badge/swift-5.5+-orange.svg)
+![CI](https://github.com/anil291987/UniFlow/actions/workflows/ci.yml/badge.svg)
+![Swift](https://img.shields.io/badge/swift-6.2-orange.svg)
 ![Platform](https://img.shields.io/badge/platform-iOS%20%7C%20macOS%20%7C%20tvOS%20%7C%20watchOS-lightgrey.svg)
 ![License](https://img.shields.io/badge/license-MIT-lightgrey.svg)
 ![SwiftPM](https://img.shields.io/badge/SwiftPM-compatible-brightgreen.svg)
@@ -15,13 +16,12 @@ Inspired by [flutter_bloc](https://github.com/felangel/bloc), UniFlow brings the
 
 ## Features
 
-- 🔄 Predictable state management using streams
-- 🍓 First-class SwiftUI support with property wrappers and view builders
-- 📱 UIKit compatibility
-- 🧪 Easy to test business logic in isolation
-- 🔧 Minimal boilerplate
-- 📦 Zero dependencies
-- 📚 Comprehensive documentation and examples
+- Predictable state management using `AsyncStream`/Combine
+- First-class SwiftUI support: `BlocProvider`, `BlocBuilder`, `BlocListener`, `RepositoryProvider`
+- UIKit compatibility via Combine's `statePublisher`
+- Easy to test business logic in isolation
+- Minimal boilerplate
+- Zero dependencies
 
 ## Installation
 
@@ -31,14 +31,11 @@ Add UniFlow to your package dependencies in `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/yourusername/UniFlow.git", from: "1.0.0")
+    .package(url: "https://github.com/anil291987/UniFlow.git", branch: "main")
 ]
 ```
 
-Or through Xcode:
-1. File > Add Packages...
-2. Enter `https://github.com/yourusername/UniFlow.git`
-3. Select the version and add to your target
+Or through Xcode: **File > Add Package Dependencies...** and enter the repository URL above.
 
 ## Quick Start
 
@@ -53,10 +50,8 @@ enum CounterEvent: Event {
 }
 
 // Define your states
-struct CounterState: State {
+struct CounterState: StateProtocol, Equatable {
     let count: Int
-    
-    static let initial = CounterState(count: 0)
 }
 ```
 
@@ -65,29 +60,24 @@ struct CounterState: State {
 ```swift
 import UniFlow
 
-class CounterBloc: Bloc<CounterEvent, CounterState> {
+final class CounterBloc: Bloc<CounterEvent, CounterState> {
     init() {
-        super.init(initialState: CounterState.initial)
+        super.init(initialState: CounterState(count: 0))
     }
-    
+
     override func mapEventToState(_ event: CounterEvent) -> AsyncStream<CounterState> {
         return AsyncStream { continuation in
             switch event {
             case .increment:
-                let newState = CounterState(count: state.count + 1)
-                continuation.yield(newState)
-                continuation.finish()
-                
+                continuation.yield(CounterState(count: state.count + 1))
+
             case .decrement:
-                let newState = CounterState(count: state.count - 1)
-                continuation.yield(newState)
-                continuation.finish()
-                
+                continuation.yield(CounterState(count: state.count - 1))
+
             case .reset:
-                let newState = CounterState.initial
-                continuation.yield(newState)
-                continuation.finish()
+                continuation.yield(CounterState(count: 0))
             }
+            continuation.finish()
         }
     }
 }
@@ -109,19 +99,19 @@ struct CounterApp: App {
 
 struct CounterView: View {
     @StateObject private var bloc = CounterBloc()
-    
+
     var body: some View {
         VStack(spacing: 20) {
             Text("UniFlow Counter Example")
                 .font(.title)
                 .padding()
-            
+
             BlocBuilder(bloc) { state in
                 Text("Count: \(state.count)")
                     .font(.largeTitle)
                     .padding()
             }
-            
+
             HStack(spacing: 16) {
                 Button(action: { bloc.send(.decrement) }) {
                     Text("-")
@@ -130,7 +120,7 @@ struct CounterView: View {
                         .background(Color.blue.opacity(0.2))
                         .cornerRadius(8)
                 }
-                
+
                 Button(action: { bloc.send(.reset) }) {
                     Text("Reset")
                         .font(.title2)
@@ -138,7 +128,7 @@ struct CounterView: View {
                         .background(Color.green.opacity(0.2))
                         .cornerRadius(8)
                 }
-                
+
                 Button(action: { bloc.send(.increment) }) {
                     Text("+")
                         .font(.title2)
@@ -156,77 +146,84 @@ struct CounterView: View {
 
 ## Documentation
 
-For more detailed documentation, please visit our [GitHub Wiki](https://github.com/yourusername/UniFlow/wiki).
+- **[Wiki](https://github.com/anil291987/UniFlow/wiki)** — Getting Started, Architecture, Testing, and FAQ
+- [Getting Started guide](Documentation/GettingStarted.md) (same content, versioned alongside the code)
+- [CHANGELOG](CHANGELOG.md)
 
 ## Examples
 
-Check out the [Examples](./Examples) directory for complete sample applications:
-- [Counter Example](./Examples/CounterExample) - A simple counter demonstrating basic Bloc usage
-- [Todo Example](./Examples/TodoExample) - A todo app showing more complex state management
-- [Login Example](./Examples/LoginExample) - A login form with validation
+Check out the [Examples](./Examples) directory:
+- [Counter Example](./Examples/CounterExample) — a simple counter demonstrating basic Bloc usage
+- [Todo Example](./Examples/TodoExample) — a todo app showing more complex state management
+
+> **Note:** these example packages currently need their `Package.swift` layout fixed
+> (sources need to live under `Sources/<TargetName>/`) before they'll build as-is.
 
 ## Testing
 
-Testing business logic is straightforward with UniFlow:
+Since `Bloc`/`Cubit` are `@MainActor`-isolated, mark test classes that call their APIs
+synchronously as `@MainActor`:
 
 ```swift
 import XCTest
+import Combine
 @testable import UniFlow
 
+@MainActor
 final class CounterBlocTests: XCTestCase {
     var cancellables: Set<AnyCancellable>!
-    
-    override func setUp() {
-        super.setUp()
+
+    override func setUp() async throws {
+        try await super.setUp()
         cancellables = .init()
     }
-    
+
     func testCounterIncrements() {
         // Arrange
         let bloc = CounterBloc()
         let expectation = self.expectation(description: "Wait for state update")
         var receivedStates: [CounterState] = []
-        
+
         // Act
-        bloc.$state
+        bloc.statePublisher
+            .dropFirst() // skip the initial state
             .sink { state in
                 receivedStates.append(state)
-                if receivedStates.count == 2 {
+                if receivedStates.count == 1 {
                     expectation.fulfill()
                 }
             }
             .store(in: &cancellables)
-        
+
         bloc.send(.increment)
-        
+
         // Assert
         wait(for: [expectation], timeout: 1.0)
         XCTAssertEqual(receivedStates.last?.count, 1)
     }
-    
-    override func tearDown() {
+
+    override func tearDown() async throws {
         cancellables.forEach { $0.cancel() }
-        super.tearDown()
+        try await super.tearDown()
     }
 }
 ```
 
 ## Architecture
 
+Events flow into a `Bloc`, which transforms them into new states via `mapEventToState`;
+the UI observes those states and reacts, and events triggered by the UI complete the
+loop. A `Cubit` is a simpler variant that skips events entirely — you call `emit(_:)`
+with a new state directly.
+
 ```
-┌─────────────────┐    Events    ┌────────────┐    States    ┌──────────────┐
-│                 │◄ ―                      │            │◄                  │              │
-│     UI Layer    │              │   Bloc     │              │   State      │
-│                 │                       ►            │                  ►              │
-└─────────────────┘              └────────────┘┊            └──────────────┘
-                                               │
-                                               ▼
-                                       ┌─────────────┐
-                                       │             │
-                                       │ Repository  │
-                                       │             │
-                                       └─────────────┘
+Events ──▶ Bloc (mapEventToState) ──▶ States ──▶ UI
+  ▲                                                │
+  └────────────────────────────────────────────────┘
 ```
+
+See the [Architecture wiki page](https://github.com/anil291987/UniFlow/wiki/Architecture)
+for how the pieces in `Sources/UniFlow/` fit together.
 
 ## Platform Support
 
@@ -237,12 +234,12 @@ final class CounterBlocTests: XCTestCase {
 
 ## Requirements
 
-- Swift 5.5+
-- Xcode 13+
+- Swift 6.2+
+- Xcode 16+ (or a toolchain supporting `swift-tools-version: 6.2`)
 
 ## License
 
-UniFlow is available under the MIT license. See the LICENSE file for more info.
+UniFlow is available under the MIT license. See the [LICENSE](LICENSE) file for more info.
 
 ## Inspiration
 
@@ -260,9 +257,3 @@ We welcome contributions to UniFlow! Please see our [Contributing Guide](CONTRIB
 3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
 4. Push to the branch (`git push origin feature/AmazingFeature`)
 5. Open a Pull Request
-
-## Contact
-
-Your Name - [your website or contact info]
-
-Project Link: [https://github.com/yourusername/UniFlow](https://github.com/yourusername/UniFlow)
