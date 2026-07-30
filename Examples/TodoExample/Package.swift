@@ -26,5 +26,7 @@ let package = Package(
         .executableTarget(
             name: "TodoExample",
             dependencies: ["UniFlow"]),
+        .testTarget(
+            name: "TodoExampleUITests"),
     ]
 )

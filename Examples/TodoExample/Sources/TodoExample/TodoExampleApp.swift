@@ -147,6 +147,7 @@ struct TodoListView: View {
                 HStack {
                     TextField("What needs to be done?", text: $newTodoText)
                         .textFieldStyle(.roundedBorder)
+                        .accessibilityIdentifier("newTodoTextField")
                         .onSubmit {
                             if !newTodoText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                                 bloc.send(.addTodo(newTodoText))
@@ -164,6 +165,7 @@ struct TodoListView: View {
                             .font(.title2)
                     }
                     .disabled(newTodoText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .accessibilityIdentifier("addTodoButton")
                 }
                 .padding(.horizontal, 8)
             }
@@ -197,6 +199,7 @@ struct TodoListView: View {
                             Text("\(state.activeCount) \(state.activeCount == 1 ? "item" : "items") left")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
+                                .accessibilityIdentifier("activeCountLabel")
 
                             Spacer()
 
@@ -211,12 +214,14 @@ struct TodoListView: View {
                             }
                             .pickerStyle(.segmented)
                             .frame(width: 150)
+                            .accessibilityIdentifier("filterPicker")
 
                             Button("Clear Completed") {
                                 bloc.send(.clearCompleted)
                             }
                             .disabled(state.completedTodos.isEmpty)
                             .font(.caption)
+                            .accessibilityIdentifier("clearCompletedButton")
                         }
                         .padding(.horizontal)
                     }
@@ -239,10 +244,12 @@ struct TodoRowView: View {
                     .foregroundColor(todo.isCompleted ? .blue : .secondary)
             }
             .buttonStyle(.plain)
+            .accessibilityIdentifier("toggleButton-\(todo.title)")
 
             Text(todo.title)
                 .strikethrough(todo.isCompleted)
                 .foregroundColor(todo.isCompleted ? .secondary : .primary)
+                .accessibilityIdentifier("todoLabel-\(todo.title)")
 
             Spacer()
 
@@ -251,6 +258,7 @@ struct TodoRowView: View {
                     .foregroundColor(.red)
             }
             .buttonStyle(.plain)
+            .accessibilityIdentifier("deleteButton-\(todo.title)")
         }
         .padding(.vertical, 4)
     }

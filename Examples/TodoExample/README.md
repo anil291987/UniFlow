@@ -22,7 +22,7 @@ A Todo application demonstrating more advanced UniFlow concepts including:
 The Todo example demonstrates how to manage complex state with multiple properties:
 
 ```swift
-struct TodoState: State {
+struct TodoState: StateProtocol, Equatable {
     var todos: [TodoItem] = []
     var filter: Filter = .all
 
@@ -49,6 +49,7 @@ enum TodoEvent: Event {
     case deleteTodo(UUID)
     case toggleAll
     case clearCompleted
+    case setFilter(TodoState.Filter)
 }
 ```
 
@@ -69,6 +70,24 @@ This approach prevents state synchronization issues and keeps the single source 
 1. Make sure you have Xcode 13 or later installed
 2. Open `TodoExample/Package.swift` in Xcode
 3. Build and run the project
+
+Or from the command line: `swift run` (or `swift build && swift test` to run the tests).
+
+## Testing
+
+`Tests/TodoExampleUITests/` holds `XCUIApplication`-based UI tests exercising the real
+app (accessibility identifiers `newTodoTextField`, `addTodoButton`, `activeCountLabel`,
+`filterPicker`, `clearCompletedButton`, and per-row `toggleButton-<title>`/
+`todoLabel-<title>`/`deleteButton-<title>`). **These cannot run under `swift test`** —
+SwiftPM only produces XCTest *unit*-test bundles, and macOS refuses to let
+`XCUIApplication` run outside a proper Xcode UI Testing Bundle target ("Device is not
+configured for UI testing"). Under `swift test` they no-op via `XCTSkip` unless
+`TODOEXAMPLE_APP_BUNDLE` is set, in which case they fail with that same error — they're
+kept here as a documented, ready-to-port reference, not a runnable suite. To actually run
+them, wrap this target in an Xcode project with a UI Testing Bundle target, point it at
+the app target, and run via Xcode or `xcodebuild test`. `scripts/build-app-bundle.sh`
+wraps the SwiftPM-built executable into a minimal `.app` bundle for manual/exploratory
+driving with `XCUIApplication(url:)` if you want to experiment outside Xcode.
 
 ## Learning Points
 
