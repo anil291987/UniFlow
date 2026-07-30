@@ -1,0 +1,98 @@
+disabled_rules: # rule identifiers to exclude from running
+  - colon
+  - comma
+  - control_statement
+  - force_cast
+  - implicit_getter_only
+  - variable_name
+opt_in_rules: # some rules are only opt-in
+  - empty_count
+  # Find all the available rules by running:
+  # swiftlint rules
+included: # paths to include during linting. `--path` is ignored if present.
+  - Sources
+  - Tests
+  - Examples
+excluded: # paths to ignore during linting
+  - Carthage
+  - Pods
+  - Sources/ExcludedFolder
+  - Sources/ExcludedFile.swift
+  - Pods/*
+
+# configurable rules can be customized from here
+line_length: 120
+statement_position: # handles 'if' and 'switch' statements
+  left:  one_space
+  right:  one_space
+type_body_length:
+  - 300 # warning
+  - 400 # error
+file_length:
+  warning: 500
+  error: 600
+large_tuple:
+  warning: 3
+  error: 5
+function_parameter_count:
+  warning: 4
+  error: 5
+cyclomatic_complexity:
+  - 11 # warning
+  - 15 # error
+function_body_length:
+  - 30 # warning
+  - 40 # error
+repetitive_pragma: # Ensures that we don't have the same pragma comment repeated multiple times.
+  enabled: true
+type_name:
+  min_length: 2 # only warning
+  max_length:
+    warning: 40
+    error: 50
+identifier_name:
+  min_length: # only min_length
+    error: 2 # only error
+  excluded: # via string array
+    - id
+    - URL
+    - GlobalAPIKey
+repetitive_imports: # Makes sure we don't import the same module multiple times.
+  excluded: # with string array
+    - XCTest  # don't blame the tests
+vertical_parameter_alignment: strict
+vertical_parameter_when_calling_parameter_closure: strict
+vertical_whitespace:
+  max_empty_lines: 3
+file_header: # optional
+  - '//'
+  - '//  __________               __  ___.'
+  - '//  \______   \_____     _/  |_\/ _|_'
+  - '//   |       _/\__  \   |   __\   __\'
+  - '//   |    |   \ / __ \_  |  |  |  |'
+  - '//   |    |   \(  <_> )  |  |  |  |'
+  - '//   |____|__  /\____/ \__|  |__|  '
+  - '//           \/                   /  '
+  - '//  _________                    .__'
+  - '//  \_   ___ \____  _  ______  _  _|__| _____    ______ __'
+  - '//  /    \  \/\  \/ \/ /    \/ \/ \/  |  \__  \  /  ___/|  |  '
+  - '//  \     \____\     _/   |  \     \   |  |/ __ \_/ ___\  |  '
+  - '//   \______  /\_____/|___|  /\______  |  (____  /\___  >__|  '
+  - '//         \/             \/         \/       \/     \/      '
+  - '//                                  __           .__  .__    '
+  - '//  _____  ______ ____   ____ _____/  |_  ____ |  | |  |   '
+  - '// /     \/  ___// __ \ /    \\   __\ /  _ \|  | |  |   '
+  - '//|  Y Y  \___ \  ___/|   |  \  |  (  <_> )  |_|  |__   '
+  - '//|__|_|  /____  >___  >___|  /__|  \____/|____/|____/   '
+  - '//      \/     \/    \/     \/                           '
+  - '//--------------------------------------------------------'
+  - '//  File: %{file}.swift'
+  - '//  Project: UniFlow'
+  - '//  Created by: %{author} on %{date}.'
+  - '//'
+  - '//  Copyright © %{year} UniFlow Contributors. All rights reserved.'
+  - '//'
+identifier_name_min_length:
+  warning: 2 # only warning
+  error: 1 # only error
+# https://realm.github.io/SwiftLint/available_rules.html

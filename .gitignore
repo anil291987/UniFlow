@@ -1,0 +1,43 @@
+# Xcode
+build/
+DerivedData/
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+xcuserdata/
+*.xcscmblueprint
+*.moved-aside
+*.xcuserstate
+*.xcscrape
+
+# Swift Package Manager
+.build/
+Package.resolved
+Package.swift.swiftpackage
+
+# CocoaPods
+Pods/
+
+# Carthage
+Carthage/Build/
+
+# Logs / temp files
+*.log
+*.tmp
+*.temp
+*.swp
+*~
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# JetBrains / AppCode
+.idea/
+*.iml
