@@ -17,6 +17,25 @@ This example shows how to:
 2. Open `CounterExample/Package.swift` in Xcode
 3. Build and run the project
 
+Or from the command line: `swift run` (or `swift build && swift test` to run the unit tests).
+
+## Testing
+
+- `Tests/CounterExampleTests/` — unit tests against `CounterBloc` directly (`swift test`).
+- `Tests/CounterExampleUITests/` — `XCUIApplication`-based UI tests exercising the real
+  app (accessibility identifiers `countLabel`, `incrementButton`, `decrementButton`,
+  `resetButton`). **These cannot run under `swift test`** — SwiftPM only produces XCTest
+  *unit*-test bundles, and macOS refuses to let `XCUIApplication` run outside a proper
+  Xcode UI Testing Bundle target ("Device is not configured for UI testing"). Under
+  `swift test` they no-op via `XCTSkip` unless `COUNTEREXAMPLE_APP_BUNDLE` is set, in
+  which case they fail with that same error — they're kept here as a documented,
+  ready-to-port reference (identifiers + assertions already wired up), not a runnable
+  suite. To actually run them, wrap this target in an Xcode project with a UI Testing
+  Bundle target, point it at the app target, and run via Xcode or `xcodebuild test`.
+  `scripts/build-app-bundle.sh` wraps the SwiftPM-built executable into a minimal `.app`
+  bundle for manual/exploratory driving with `XCUIApplication(url:)` if you want to
+  experiment outside Xcode.
+
 ## Code Overview
 
 ### Events
@@ -30,7 +49,7 @@ enum CounterEvent: Event {
 
 ### States
 ```swift
-struct CounterState: State, Equatable {
+struct CounterState: StateProtocol, Equatable {
     var count: Int = 0
 }
 ```

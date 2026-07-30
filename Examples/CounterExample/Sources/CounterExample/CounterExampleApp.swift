@@ -78,6 +78,7 @@ struct CounterView: View {
                 Text("Count: \(state.count)")
                     .font(.largeTitle)
                     .padding()
+                    .accessibilityIdentifier("countLabel")
             }
 
             HStack(spacing: 16) {
@@ -88,6 +89,7 @@ struct CounterView: View {
                         .background(Color.blue.opacity(0.2))
                         .cornerRadius(8)
                 }
+                .accessibilityIdentifier("decrementButton")
 
                 Button(action: { bloc.send(.reset) }) {
                     Text("Reset")
@@ -96,6 +98,7 @@ struct CounterView: View {
                         .background(Color.green.opacity(0.2))
                         .cornerRadius(8)
                 }
+                .accessibilityIdentifier("resetButton")
 
                 Button(action: { bloc.send(.increment) }) {
                     Text("+")
@@ -104,6 +107,7 @@ struct CounterView: View {
                         .background(Color.red.opacity(0.2))
                         .cornerRadius(8)
                 }
+                .accessibilityIdentifier("incrementButton")
             }
             .padding()
 

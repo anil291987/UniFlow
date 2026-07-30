@@ -29,5 +29,7 @@ let package = Package(
         .testTarget(
             name: "CounterExampleTests",
             dependencies: ["CounterExample"]),
+        .testTarget(
+            name: "CounterExampleUITests"),
     ]
 )
