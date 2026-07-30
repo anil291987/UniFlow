@@ -156,8 +156,8 @@ Check out the [Examples](./Examples) directory:
 - [Counter Example](./Examples/CounterExample) — a simple counter demonstrating basic Bloc usage
 - [Todo Example](./Examples/TodoExample) — a todo app showing more complex state management
 
-> **Note:** these example packages currently need their `Package.swift` layout fixed
-> (sources need to live under `Sources/<TargetName>/`) before they'll build as-is.
+Each example is a standalone SwiftPM package; build/test from inside its directory, e.g.
+`cd Examples/CounterExample && swift build && swift test`.
 
 ## Testing
 
