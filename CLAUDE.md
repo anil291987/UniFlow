@@ -1,226 +1,85 @@
-# UniFlow
+# CLAUDE.md
 
-A Swift implementation of the BLoC (Business Logic Component) pattern for state management in SwiftUI and UIKit applications.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Using Claude Code
+## Commands
 
-You can use Claude Code to help with development:
+- Build the library: `swift build`
+- Run all tests: `swift test`
+- Run one test class: `swift test --filter BlocListenerTests`
+- Run one test method: `swift test --filter BlocListenerTests/testBlocListenerWithExplicitBloc`
+- Lint: `swiftlint` (config at `.swiftlint.yml`; not installed in this environment)
 
-- Use `/help` to see available commands.
-- Use `/doc` to generate documentation.
-- Use `/test` to run tests.
-- Use `/code-review` to review changes.
-- Use `/simplify` to simplify code.
-- Use `/plan` to create a plan for implementing features.
+The `Examples/` packages (`CounterExample`, `TodoExample`) do **not** build as-is: their
+`Package.swift` targets expect sources under `Sources/<TargetName>/`, but the actual
+`.swift` files sit directly in `Examples/CounterExample/` and `Examples/TodoExample/`.
+Treat them as reference snippets, not buildable projects, unless you fix the layout first.
 
-For more information, see the [Claude Code documentation](https://docs.anthropic.com/claude/docs/claude-code).
+## Architecture
 
-## Project Structure
+UniFlow is a single-target SwiftPM library (`Package.swift`: target `UniFlow`, source path
+`Sources/`, zero dependencies) implementing the BLoC pattern, modeled on `flutter_bloc`. All
+core types live in `Sources/UniFlow/`:
 
-- `Sources/`: Contains the main library code.
-- `Tests/`: Contains unit tests.
-- `Examples/`: Contains example applications.
-- `Documentation/`: Additional documentation.
+- **`BlocBase`** (`BlocBase.swift`) — the `@MainActor` protocol both `Bloc` and `Cubit`
+  conform to; requires `state` and a Combine `statePublisher`. Generic SwiftUI plumbing
+  (`BlocBuilder`, `BlocListener`) is written against this protocol, not concrete
+  `Bloc`/`Cubit` types.
+- **`Bloc<EventType, StateType>`** (`Bloc.swift`) — event-driven: `send(_:)` yields into an
+  internal `AsyncStream<EventType>`, consumed by a `Task` started in `init` that calls the
+  overridden `mapEventToState(_:)` and applies each yielded state via `await MainActor.run`.
+  `close()` cancels that task and finishes the stream.
+- **`Cubit<StateType>`** (`Cubit.swift`) — simpler: `emit(_:)` sets `state` directly (no-op
+  if `newState == state`, since `StateType: Equatable`).
+- **`Event`** / **`StateProtocol`** (`Event.swift`, `State.swift`) — marker protocols
+  (`Sendable`) that user-defined event/state types conform to.
+- **`BlocObserver`** (`BlocObserver.swift`) — lifecycle hook protocol (`didCreate`/
+  `didChange`/`didClose`). Both `Bloc` and `Cubit` expose an overridable `blocObserver`
+  property defaulting to the `BlocObserverImpl.shared` singleton; their own `init`,
+  state-mutation, and `close()` code paths call through `self.blocObserver`, not a
+  hardcoded reference to the singleton — keep it that way so a per-instance override
+  actually takes effect.
+- **`BlocProvider`** / **`RepositoryProvider`** (`BlocProvider.swift`,
+  `RepositoryProvider.swift`) — thin SwiftUI wrappers around `@StateObject` +
+  `.environmentObject(_:)`.
+- **`BlocBuilder`** / **`BlocListener`** (`BlocBuilder.swift`, `BlocListener.swift`) — each
+  supports two construction paths: an explicit bloc instance, or one pulled from the
+  SwiftUI environment. Each is a thin dispatcher (`enum Source { case explicit(B);
+  case environment }`) that forwards to one of two *separate* private child view structs
+  (`_ExplicitBlocBuilder`/`_EnvironmentBlocBuilder`,
+  `_ExplicitBlocListener`/`_EnvironmentBlocListener`). This split is load-bearing: SwiftUI
+  validates every dynamic property (`@EnvironmentObject`, `@StateObject`, etc.) on a view
+  when its `body` runs, even on branches that go untaken. Putting both an explicit bloc
+  property and `@EnvironmentObject` on one view type crashes at runtime ("No
+  ObservableObject of type X found") whenever the explicit path is used without also
+  supplying `.environmentObject(_:)`. Don't collapse these back into a single view type.
+  `BlocListener` also relies on `bloc.statePublisher.dropFirst()` to skip the initial
+  state — `@Published` republishes the current value to any new subscriber, so removing
+  `dropFirst()` reintroduces a bug where the listener fires once on subscribe with
+  whatever the current state happens to be.
+- `CubitProvider`/`CubitBuilder`/`CubitListener` are typealiases specializing the
+  corresponding `Bloc*` type to `Cubit<StateType>`.
 
-## Swift/Bloc Development Best Practices
+### Concurrency model
 
-### Bloc Design Principles
-- **Single Responsibility**: Each Bloc should handle one distinct aspect of business logic
-- **Stateless Events**: Events should be immutable data classes/structs representing user actions or system events
-- **Immutable States**: States should be immutable data structures representing the UI state
-- **Unidirectional Flow**: Events → Bloc (mapEventToState) → States → UI → Events
-- **No UI Dependencies**: Blocs should never reference UI components directly
+Every core type (`Bloc`, `Cubit`, `BlocBase`) is `@MainActor`-isolated. Any code —
+including tests — that constructs or calls into them synchronously must itself run on
+`@MainActor`, or the compiler rejects it with actor-isolation errors. See
+`Tests/UniFlowTests/*Tests.swift` for the pattern: test classes are marked `@MainActor`
+(this is compatible with `XCTestCase` overrides like `setUpWithError`/`tearDownWithError`).
 
-### Event Design
-- Make events enum cases with associated values when needed
-- Keep events minimal and focused on user intent
-- Consider using structs instead of enums for complex events with multiple parameters
-- Avoid putting UI-specific data in events
+### Testing the SwiftUI-facing types
 
-### State Design
-- Make states structs with `let` properties (immutable)
-- Derive state from previous state + event, never from external sources
-- Consider using `Equatable` conformance to prevent unnecessary UI updates
-- Include loading/error states explicitly in your state hierarchy
+`BlocBuilder`, `BlocListener`, `BlocProvider`, and `RepositoryProvider` are `View`s.
+Constructing one and never rendering it means `body`/`.onReceive`/`.onAppear` never run,
+so a test that just builds the view and sends events is a no-op. `BlocBuilderTests.swift`
+and `BlocListenerTests.swift` host the view for real via `NSHostingController(rootView:)`
+and force a render with `controller.view.layoutSubtreeIfNeeded()`, following state changes
+with either a small delay or a repeating layout "pump" (`Timer`) to give SwiftUI a chance
+to re-render. Don't assert an exact number of body-evaluations after several rapid state
+changes — SwiftUI is free to coalesce them into fewer render passes; assert on the final
+observed value instead.
 
-### Stream Management
-- Close streams properly in `onClose()` or equivalent cleanup
-- Avoid doing heavy computation in `mapEventToState` - offload to background when needed
-- Use `AsyncStream` correctly - remember to call `continuation.finish()` when done
-- Handle errors gracefully in your event mapping
-
-## UniFlow-Specific Guidelines
-
-### Bloc Implementation
-- Always call `super.init(initialState:)` in your Bloc init
-- Override `mapEventToState` to transform events to states
-- `Cubit` uses `emit()` directly instead of an event/`mapEventToState` pipeline
-- Observe lifecycle events (creation, state changes, closing) via the `blocObserver`
-  property (`BlocObserver` protocol: `didCreate`/`didChange`/`didClose`), not
-  per-method overrides — both `Bloc` and `Cubit` expose it and default to the shared
-  `BlocObserverImpl.shared` instance
-- Call `close()` to release resources; `Bloc` also cancels its internal event-processing
-  `Task` and finishes its event stream
-
-### State Management
-- Provide a clear `initialState` static property or computed property
-- Consider making states `Equatable` for efficient UI updates
-- Use `@MainActor` for Blocs that will be used from SwiftUI (when needed)
-- For complex state transitions, consider using a dedicated state reducer function
-
-### SwiftUI Integration
-- Use `@StateObject` for Blocs that should live as long as the owning view
-- Use `@ObservedObject` when passing Blocs down to child views
-- Consider creating custom ViewModifiers for common Bloc patterns
-- Remember that `@StateObject` won't recreate the Bloc when the view recreates
-
-### UIKit Integration
-- Use Blocs as properties in ViewControllers/ViewModels
-- Subscribe to stream in `viewDidLoad()` and unsubscribe in `deinit`
-- Consider using Combine or RxSwift bridges if needed
-- Remember to handle threading - UI updates must happen on main thread
-
-## Testing Strategies for UniFlow
-
-### Unit Testing Blocs
-- Test event-to-state transformation in isolation
-- Use `await` to collect values from the AsyncStream
-- Test edge cases: empty event streams, rapid events, error conditions
-- Mock any dependencies injected into your Bloc
-- Test that `onChange` and `onEvent` callbacks work correctly
-
-### Integration Testing
-- Test Bloc interactions with actual SwiftUI views
-- Verify that state changes trigger UI updates correctly
-- Test navigation and state persistence scenarios
-- Consider using snapshot testing for complex UI states
-
-### Testing Best Practices
-- Keep Bloc tests focused on business logic, not UI
-- Use descriptive test names that specify the event and expected outcome
-- Test both positive and negative cases
-- Reset any global state between tests
-
-### Swift Concurrency & XCTest Gotchas (learned the hard way)
-- `Bloc`/`Cubit` are `@MainActor` (via the `BlocBase` protocol). Any test class that
-  calls their APIs (`init`, `send`, `emit`, `close`) synchronously outside a `Task`
-  must itself be marked `@MainActor`, or the compiler will reject it with
-  actor-isolation errors.
-- Once a test class is `@MainActor`, don't wrap a Combine subscription in
-  `Task { @MainActor in ... }` before calling a synchronous mutator (e.g.
-  `cubit.increment()`) right after — the `Task` won't run until the current
-  synchronous call stack yields, so the mutation can fire before the subscription
-  is attached and the expected value never arrives. Just subscribe directly.
-- `XCTestExpectation.expectedFulfillmentCount` must equal the exact number of times
-  `fulfill()` is actually called. Setting it to N while only calling `fulfill()` once
-  inside an `if count == N` check causes a silent timeout, not a compile error — this
-  bit multiple tests in this repo.
-- A bare SwiftUI `View` value (e.g. `BlocBuilder(...)`) never evaluates its `body` or
-  runs `.onReceive`/`.onAppear` unless something actually renders it. Constructing one
-  and immediately sending events is a no-op test. To exercise it for real, host it via
-  `NSHostingController(rootView:)` and force a render pass with
-  `controller.view.layoutSubtreeIfNeeded()` (see `BlocBuilderTests.swift`/
-  `BlocListenerTests.swift` for the pattern).
-- Don't assert on an exact SwiftUI body-call count after several rapid state changes —
-  SwiftUI is free to coalesce them into fewer render passes. Assert on the final
-  observed value instead.
-
-## Claude Code Workflows for Swift Development
-
-### Using /plan for Feature Development
-1. Start with `/plan` to outline your Bloc implementation
-2. Define events and states first
-3. Outline the `mapEventToState` logic
-4. Plan any dependencies or services needed
-5. Consider testing strategy in your plan
-
-### Using /code-review for UniFlow Code
-- Focus on Bloc adherence to BLoC principles
-- Check for proper state immutability
-- Verify proper stream management and cleanup
-- Look for potential retain cycles or memory issues
-- Ensure proper threading (UI updates on main thread)
-
-### Using /simplify for UniFlow Code
-- Look for complex `mapEventToState` implementations that can be broken down
-- Simplify complex state transition logic
-- Reduce boilerplate in Bloc implementations
-- Simplify event handling with pattern matching
-
-### Common Refactorings for UniFlow
-- Extract complex state transition logic to private methods
-- Create base Bloc classes for common patterns (loading, error states)
-- Extract event handling to separate methods for better readability
-- Create utility functions for common state transformations
-
-## Common Patterns and Anti-patterns
-
-### Recommended Patterns
-- **Loading States**: Include explicit loading states in your state hierarchy
-- **Error Handling**: Use either error states or a separate error stream
-- **Pagination**: Include pagination state in your Bloc state (current page, hasMore, etc.)
-- **Form Validation**: Create dedicated FormBlocs with field-level validation states
-- **Authentication**: Create authentication Blocs that manage user session state
-
-### Anti-patterns to Avoid
-- **Putting UI Logic in Blocs**: Blocs**: Don't put view-specific logic (animations, navigation) in Blocs
-- **Blocking the Main Thread**: Avoid synchronous network calls or heavy computation in `mapEventToState`
-- **Mutable State**: Never mutate state objects directly - always create new instances
-- **Overly Complex Events**: Keep events focused on user intent, not UI specifics
-- **Memory Leaks**: Always clean up subscriptions, timers, and other resources in `onClose()`
-- **Unconditional `@EnvironmentObject` alongside an explicit-instance path**: SwiftUI
-  validates *every* dynamic property on a view when its `body` runs, even branches
-  that go unused. A view that supports both an explicit instance and an environment
-  instance (like `BlocBuilder`/`BlocListener`) must not declare `@EnvironmentObject`
-  directly on itself — it will crash at runtime ("No ObservableObject of type X
-  found") whenever the explicit-instance path is used without *also* supplying
-  `.environmentObject(_:)`. Split the two paths into separate child view types
-  instead, so `@EnvironmentObject` only exists on the view actually instantiated for
-  the environment-based path.
-
-## SwiftUI Specific Tips
-
-### Property Wrappers
-- Use `@StateObject` for Blocs owned by a view
-- Use `@ObservedObject` for Blocs passed down from parent views
-- Consider `@EnvironmentObject` for app-wide Blocs (like authentication)
-
-### View Construction
-- Keep views focused on presentation logic only
-- Use `BlocBuilder` for rebuilding UI on state changes
-- Use `BlocListener` for side effects (navigation, snackbar, etc.)
-- Consider creating custom view modifiers for reusable Bloc patterns
-
-### Animation and Transitions
-- Handle animations in the view layer, not in Blocs
-- Use state changes to trigger view animations
-- Consider using `withAnimation` in response to Bloc state changes
-
-## UIKit Specific Tips
-
-### View Controller Integration
-- Create Bloc properties in your ViewController
-- Subscribe to streams in `viewDidLoad()` and unsubscribe in `deinit`
-- Use `weak self` in closures to avoid retain cycles
-- Update UI on main thread using `DispatchQueue.main.async` when needed
-
-### Storyboard/XIB Considerations
-- Consider using Blocs as properties rather than instantiating in awakeFromNib
-- Be careful with outlet connections when using Blocs for view configuration
-- Consider using a configurator pattern for complex view setups
-
-## Resources
-
-- [UniFlow Documentation](/Documentation)
-- [Examples Directory](/Examples)
-- [flutter_bloc](https://github.com/felangel/bloc) - Original Flutter bloc library
-- [Apple's Combine Framework Documentation](https://developer.apple.com/documentation/combine)
-- [Swift Concurrency Documentation](https://developer.apple.com/documentation/swift/concurrency)
-
-## Contributing
-
-Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduct and the process for submitting pull requests.
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+Also watch for: `XCTestExpectation.expectedFulfillmentCount` must equal the exact number
+of `fulfill()` calls actually made. Setting it to N while only calling `fulfill()` once
+inside an `if count == N` check compiles fine but silently times out at runtime.
