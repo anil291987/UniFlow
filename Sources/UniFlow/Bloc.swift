@@ -9,7 +9,34 @@ import Combine
 
 // MARK: - BlocBase is already defined in BlocBase.swift, Event and StateProtocol in their respective files
 
-/// Abstract base class for all Blocs (Business Logic Components)
+/// Abstract base class for Blocs (Business Logic Components): transforms a
+/// stream of `EventType` into a stream of `StateType`.
+///
+/// Subclass it, override ``mapEventToState(_:)``, and call ``send(_:)`` to
+/// feed it events:
+///
+/// ```swift
+/// final class CounterBloc: Bloc<CounterEvent, CounterState> {
+///     init() {
+///         super.init(initialState: CounterState(count: 0))
+///     }
+///
+///     override func mapEventToState(_ event: CounterEvent) -> AsyncStream<CounterState> {
+///         AsyncStream { continuation in
+///             switch event {
+///             case .increment:
+///                 continuation.yield(CounterState(count: state.count + 1))
+///             case .decrement:
+///                 continuation.yield(CounterState(count: state.count - 1))
+///             }
+///             continuation.finish()
+///         }
+///     }
+/// }
+/// ```
+///
+/// If you don't need event processing — just direct state updates — use
+/// ``Cubit`` instead.
 @MainActor
 open class Bloc<EventType: Event & Sendable, StateType: StateProtocol & Sendable & Equatable>: ObservableObject, BlocBase {
     // MARK: - Public Properties

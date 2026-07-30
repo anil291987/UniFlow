@@ -7,7 +7,12 @@
 import Foundation
 import Combine
 
-/// A type that represents a Bloc or Cubit, providing access to its state.
+/// The common interface shared by `Bloc` and `Cubit`.
+///
+/// Generic SwiftUI plumbing (`BlocProvider`, `BlocBuilder`, `BlocListener`,
+/// `CubitProvider`, `CubitBuilder`, `CubitListener`) is written against this
+/// protocol rather than the concrete `Bloc`/`Cubit` classes, so it works with
+/// either. You won't normally conform to `BlocBase` yourself.
 @MainActor
 public protocol BlocBase: ObservableObject {
     associatedtype State: StateProtocol

@@ -8,7 +8,7 @@ UniFlow is a Swift implementation of the BLoC (Business Logic Component) pattern
 
 ### Is UniFlow compatible with SwiftUI?
 
-Yes! UniFlow has first-class support for SwiftUI with components like `BlocProvider`, `BlocBuilder`, `BlocListener`, and property wrappers like `@BlocProperty`.
+Yes! UniFlow has first-class support for SwiftUI with `BlocProvider`, `BlocBuilder`, `BlocListener`, and `RepositoryProvider`.
 
 ### Does UniFlow work with UIKit?
 
@@ -85,6 +85,7 @@ override func mapEventToState(_ event: AppEvent) -> AsyncStream<AppState> {
             }
         }
     }
+}
 ```
 
 ### How do I prevent infinite loops in my Bloc?

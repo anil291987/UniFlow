@@ -7,8 +7,25 @@
 import Foundation
 import Combine
 
-/// A Cubit is a simplified version of Bloc that only requires outputting new states.
-/// It does not require defining event classes; instead, you call emit() with a new state.
+/// A simplified `Bloc` that emits new states directly, with no event type or
+/// `mapEventToState` pipeline.
+///
+/// Subclass it and call ``emit(_:)`` from your own methods:
+///
+/// ```swift
+/// final class CounterCubit: Cubit<CounterState> {
+///     init() {
+///         super.init(initialState: CounterState(count: 0))
+///     }
+///
+///     func increment() {
+///         emit(CounterState(count: state.count + 1))
+///     }
+/// }
+/// ```
+///
+/// Because `StateType` is `Equatable`, emitting a state equal to the current
+/// one is a no-op — no redundant `didChange` notification or UI update.
 open class Cubit<StateType: StateProtocol & Equatable>: ObservableObject, BlocBase {
     // MARK: - Public Properties
 

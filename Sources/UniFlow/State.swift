@@ -6,8 +6,18 @@
 
 import Foundation
 
-/// Protocol that all states must conform to
+/// A marker protocol for the state a `Bloc` or `Cubit` holds and emits.
+///
+/// Conform your own state type — typically a `struct` with `let` properties —
+/// to `StateProtocol`. Additionally conforming to `Equatable` lets `Cubit`
+/// skip emitting a state that's identical to the current one:
+///
+/// ```swift
+/// struct CounterState: StateProtocol, Equatable {
+///     let count: Int
+/// }
+/// ```
 public protocol StateProtocol: Sendable { }
 
-/// Empty state implementation that conforms to StateProtocol
+/// A state type with no data, useful as a placeholder or initial state.
 public struct EmptyState: StateProtocol { }
