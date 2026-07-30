@@ -14,15 +14,17 @@ import Combine
 final class CubitTests: XCTestCase {
     var cancellables: Set<AnyCancellable>!
 
-    override func setUpWithError() throws {
+    override func setUp() async throws {
+        try await super.setUp()
         // Put setup code here. This method is called before the invocation of each test method in the class.
         cancellables = .init()
     }
 
-    override func tearDownWithError() throws {
+    override func tearDown() async throws {
         // Put teardown code here. This method is called after the invocation of each test method in the class.
         cancellables.forEach { $0.cancel() }
         cancellables = nil
+        try await super.tearDown()
     }
 
     func testCubitInitialState() {

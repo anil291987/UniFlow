@@ -131,6 +131,7 @@ final class BlocProviderTests: XCTestCase {
 
 // MARK: - RepositoryProvider Tests
 
+@MainActor
 final class RepositoryProviderTests: XCTestCase {
 
     // MARK: - RepositoryProvider Tests

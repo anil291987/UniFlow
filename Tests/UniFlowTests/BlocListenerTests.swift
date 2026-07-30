@@ -68,7 +68,11 @@ fileprivate func host<V: View>(_ view: V) -> NSHostingController<V> {
 @MainActor
 fileprivate func pumpLayout<V>(_ controller: NSHostingController<V>, until expectation: XCTestExpectation) -> Timer {
     Timer.scheduledTimer(withTimeInterval: 0.02, repeats: true) { _ in
-        controller.view.layoutSubtreeIfNeeded()
+        // Timer fires on the run loop it was scheduled on, which is the main
+        // thread here, so it's safe to assume MainActor isolation synchronously.
+        MainActor.assumeIsolated {
+            controller.view.layoutSubtreeIfNeeded()
+        }
     }
 }
 
@@ -76,13 +80,15 @@ fileprivate func pumpLayout<V>(_ controller: NSHostingController<V>, until expec
 final class BlocListenerTests: XCTestCase {
     var cancellables: Set<AnyCancellable>!
 
-    override func setUpWithError() throws {
+    override func setUp() async throws {
+        try await super.setUp()
         cancellables = .init()
     }
 
-    override func tearDownWithError() throws {
+    override func tearDown() async throws {
         cancellables.forEach { $0.cancel() }
         cancellables = nil
+        try await super.tearDown()
     }
 
     // MARK: - BlocListener Tests

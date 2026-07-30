@@ -58,13 +58,15 @@ fileprivate class BuilderTestBloc: Bloc<BuilderTestEvent, BuilderTestState> {
 final class BlocBuilderTests: XCTestCase {
     var cancellables: Set<AnyCancellable>!
 
-    override func setUpWithError() throws {
+    override func setUp() async throws {
+        try await super.setUp()
         cancellables = .init()
     }
 
-    override func tearDownWithError() throws {
+    override func tearDown() async throws {
         cancellables.forEach { $0.cancel() }
         cancellables = nil
+        try await super.tearDown()
     }
 
     // MARK: - BlocBuilder Tests
@@ -159,7 +161,11 @@ final class BlocBuilderTests: XCTestCase {
         // to coalesce rapid successive state changes into fewer render passes, so we
         // only assert on the final observed value, not an exact call count.
         let pump = Timer.scheduledTimer(withTimeInterval: 0.02, repeats: true) { _ in
-            controller.view.layoutSubtreeIfNeeded()
+            // Timer fires on the run loop it was scheduled on, which is the main
+            // thread here, so it's safe to assume MainActor isolation synchronously.
+            MainActor.assumeIsolated {
+                controller.view.layoutSubtreeIfNeeded()
+            }
         }
 
         // Then

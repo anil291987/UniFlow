@@ -83,17 +83,19 @@ class TestCubit: Cubit<TestState> {
 final class UniFlowTests: XCTestCase {
     var cancellables: Set<AnyCancellable>!
 
-    override func setUpWithError() throws {
+    override func setUp() async throws {
+        try await super.setUp()
         // Put setup code here. This method is called before the invocation of each test method in the class.
         cancellables = .init()
         // Note: We don't modify the shared BlocObserver instance directly in tests
         // to avoid affecting other tests
     }
 
-    override func tearDownWithError() throws {
+    override func tearDown() async throws {
         // Put teardown code here. This method is called after the invocation of each test method in the class.
         cancellables.forEach { $0.cancel() }
         cancellables = nil
+        try await super.tearDown()
     }
 
     func testBlocInitialState() {
@@ -312,7 +314,7 @@ final class UniFlowTests: XCTestCase {
 
 // MARK: - Test Helper
 
-class TestBlocObserver: BlocObserverBase {
+class TestBlocObserver: BlocObserverBase, @unchecked Sendable {
     var createCount = 0
     var changeCount = 0
     var closeCount = 0
