@@ -54,10 +54,13 @@ For more information, see the [Claude Code documentation](https://docs.anthropic
 ### Bloc Implementation
 - Always call `super.init(initialState:)` in your Bloc init
 - Override `mapEventToState` to transform events to states
-- Use `emit()` method to add new states to the stream
-- Override `onChange()` to observe state changes (for logging/analytics)
-- Override `onEvent()` to observe incoming events
-- Override `onClose()` to clean up resources
+- `Cubit` uses `emit()` directly instead of an event/`mapEventToState` pipeline
+- Observe lifecycle events (creation, state changes, closing) via the `blocObserver`
+  property (`BlocObserver` protocol: `didCreate`/`didChange`/`didClose`), not
+  per-method overrides — both `Bloc` and `Cubit` expose it and default to the shared
+  `BlocObserverImpl.shared` instance
+- Call `close()` to release resources; `Bloc` also cancels its internal event-processing
+  `Task` and finishes its event stream
 
 ### State Management
 - Provide a clear `initialState` static property or computed property
@@ -97,6 +100,30 @@ For more information, see the [Claude Code documentation](https://docs.anthropic
 - Use descriptive test names that specify the event and expected outcome
 - Test both positive and negative cases
 - Reset any global state between tests
+
+### Swift Concurrency & XCTest Gotchas (learned the hard way)
+- `Bloc`/`Cubit` are `@MainActor` (via the `BlocBase` protocol). Any test class that
+  calls their APIs (`init`, `send`, `emit`, `close`) synchronously outside a `Task`
+  must itself be marked `@MainActor`, or the compiler will reject it with
+  actor-isolation errors.
+- Once a test class is `@MainActor`, don't wrap a Combine subscription in
+  `Task { @MainActor in ... }` before calling a synchronous mutator (e.g.
+  `cubit.increment()`) right after — the `Task` won't run until the current
+  synchronous call stack yields, so the mutation can fire before the subscription
+  is attached and the expected value never arrives. Just subscribe directly.
+- `XCTestExpectation.expectedFulfillmentCount` must equal the exact number of times
+  `fulfill()` is actually called. Setting it to N while only calling `fulfill()` once
+  inside an `if count == N` check causes a silent timeout, not a compile error — this
+  bit multiple tests in this repo.
+- A bare SwiftUI `View` value (e.g. `BlocBuilder(...)`) never evaluates its `body` or
+  runs `.onReceive`/`.onAppear` unless something actually renders it. Constructing one
+  and immediately sending events is a no-op test. To exercise it for real, host it via
+  `NSHostingController(rootView:)` and force a render pass with
+  `controller.view.layoutSubtreeIfNeeded()` (see `BlocBuilderTests.swift`/
+  `BlocListenerTests.swift` for the pattern).
+- Don't assert on an exact SwiftUI body-call count after several rapid state changes —
+  SwiftUI is free to coalesce them into fewer render passes. Assert on the final
+  observed value instead.
 
 ## Claude Code Workflows for Swift Development
 
@@ -141,6 +168,15 @@ For more information, see the [Claude Code documentation](https://docs.anthropic
 - **Mutable State**: Never mutate state objects directly - always create new instances
 - **Overly Complex Events**: Keep events focused on user intent, not UI specifics
 - **Memory Leaks**: Always clean up subscriptions, timers, and other resources in `onClose()`
+- **Unconditional `@EnvironmentObject` alongside an explicit-instance path**: SwiftUI
+  validates *every* dynamic property on a view when its `body` runs, even branches
+  that go unused. A view that supports both an explicit instance and an environment
+  instance (like `BlocBuilder`/`BlocListener`) must not declare `@EnvironmentObject`
+  directly on itself — it will crash at runtime ("No ObservableObject of type X
+  found") whenever the explicit-instance path is used without *also* supplying
+  `.environmentObject(_:)`. Split the two paths into separate child view types
+  instead, so `@EnvironmentObject` only exists on the view actually instantiated for
+  the environment-based path.
 
 ## SwiftUI Specific Tips
 
