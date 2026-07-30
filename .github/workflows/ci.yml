@@ -14,10 +14,16 @@ concurrency:
 jobs:
   build-and-test:
     name: Build & Test
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      # Package.swift declares `swift-tools-version: 6.2` to match this project's
+      # dev toolchain; pin to whichever installed Xcode on the runner is newest
+      # rather than whatever macos-15 defaults to, since that default can lag.
+      - name: Select latest available Xcode
+        run: sudo xcode-select -s "$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)/Contents/Developer"
 
       - name: Show Swift version
         run: swift --version
@@ -30,7 +36,7 @@ jobs:
 
   lint:
     name: SwiftLint
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
